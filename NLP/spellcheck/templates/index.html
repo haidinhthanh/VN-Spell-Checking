@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Spell check</title>
+	{% load static %}
+	<script src="{% static 'jquery-3.3.1.min.js' %}"></script>
+</head>
+<body>
+	<div style="padding:40px;margin:40px;border:1px solid #ccc">
+	    <form action="" method="post" >
+			{% csrf_token %} {{form}}
+	    	<textarea rows="0" cols="50" id="uptxt">
+	    	</textarea>	
+	        <button type="button" value="Upload" name="upload" id="upload">
+	        	Submit
+	        </button>
+	    </form>
+	    <div>
+    		<img style="width:20%;display: none;" src="/media/images/spinner.gif" id='progress' />
+		</div>
+	    <div id="predic"></div>
+	</div>
+</body>
+
+</html>
+<script type="text/javascript">
+	$("#upload").click(function(){
+	console.log($("#uptxt").val());
+	var $uptxt = $("#uptxt").val();
+	$('#progress').show(); 
+	$("#predic").empty();
+	$.ajax({
+		url:'spellcheck/',
+		type: 'POST',
+		data: {
+			uptxt: $uptxt,
+			csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
+		},
+		success: function(response){
+			$('#progress').hide();
+			$("#predic").append("<p>"+"Câu đúng: "+response+"</p>");
+			console.log(response);
+		}
+	});
+});
+</script>
