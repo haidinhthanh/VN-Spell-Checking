@@ -140,3 +140,385 @@
 139equal<PAD>
 140equal<EOS>
 141equal<GO>
+//////////////////////////////////////////////////////////////////////////////////
+from constants_tones import ALL_SINGLE_TONES, NUM_TONES, DOUBLE_CLICK_VOWELS, COMMA_MARK_VOWELS, \
+    NUM_CM, NUM_DC, LIST_D_TONES, LIST_T_TONES, LiST_S_TONES, \
+    MAP_VOWEL_TYPE
+
+
+class ToneUtils:
+    @classmethod
+    def check_vowel_type(cls, word):
+        word = str(word).strip()
+        for index in range(len(word) - 2):
+            if word[index:index + 3] in LIST_T_TONES:
+                return 3
+        for index in range(len(word) - 1):
+            if word[index:index + 2] in LIST_D_TONES:
+                return 2
+        for index in range(len(word)):
+            if word[index] in LiST_S_TONES:
+                return 1
+
+        return -1
+
+    @classmethod
+    def find_tone(cls, word, vowel_type):
+        for index in range(len(word) - vowel_type + 1):
+            # found a vowel
+            for tone_vowel in MAP_VOWEL_TYPE[vowel_type]:
+                # it is a toned vowel
+                word_vowel = word[index:index + vowel_type]
+                if word_vowel in tone_vowel:
+                    return tone_vowel.index(word_vowel) % NUM_TONES, word.index(word_vowel)
+        # unmarked
+        return -1, None
+
+    @classmethod
+    def change_tone(cls, word, vowel_type, tone_type, tone_index):
+        if tone_type > NUM_TONES:
+            return word
+        word = str(word).strip()
+        word_vowel = word[tone_index:tone_index + vowel_type]
+        replace_vowel = word_vowel
+        for tone_vowel in MAP_VOWEL_TYPE[vowel_type]:
+            if word_vowel in tone_vowel:
+                replace_vowel = tone_vowel[tone_vowel.index(word_vowel)
+                                           - (tone_vowel.index(word_vowel) % NUM_TONES)
+                                           + tone_type]
+                break
+        return word.replace(word_vowel, replace_vowel)
+
+    @classmethod
+    def find_double_click(cls, word):
+        for letter in word:
+            for dc_vowel in DOUBLE_CLICK_VOWELS:
+                if letter in dc_vowel[1:]:
+                    return dc_vowel.index(letter) % NUM_DC, word.index(letter)
+        return -1, None
+
+    @classmethod
+    def find_comma_mark(cls, word):
+        for letter in word:
+            for cm_vowel in COMMA_MARK_VOWELS:
+                if letter in cm_vowel[1:]:
+                    return cm_vowel.index(letter) % NUM_CM, word.index(letter)
+
+        return -1, None
+
+    def check_word_attr(self, word):
+        vowel_type = self.check_vowel_type(word)
+        tone, tone_index = self.find_tone(word=word,
+                                          vowel_type=vowel_type)
+        un_tone_word = self.change_tone(word=word,
+                                        vowel_type=vowel_type,
+                                        tone_index=tone_index,
+                                        tone_type=0)
+        db_click, dbc_index = self.find_double_click(un_tone_word)
+        com_mark, cm_index = self.find_comma_mark(un_tone_word)
+
+        attr = dict()
+        attr["tone"] = (tone, tone_index)
+        attr["double click"] = (db_click, dbc_index)
+        attr["comma mark"] = (com_mark, cm_index)
+        attr["vowel type"] = (vowel_type, tone_index)
+        return attr, un_tone_word
+#
+/////////////////////////////////////////////////////////////////
+"""
+6 tones in total, including "unmarked" mark
+ngang = 0, huyền = 1, sắc = 2, hỏi = 3, ngã = 4, nặng = 5
+"""
+NUM_TONES = 6
+"""
+Nguyen am ba trong tieng viet co dau danh o phia sau
+"""
+TONE_T_IEU = "ieu ièu iéu iẻu iẽu iẹu iêu iều iếu iểu iễu iệu".split()
+TONE_T_YEU = "yeu yèu yéu yẻu yẽu yẹu yêu yều yếu yểu yễu yệu".split()
+TONE_T_OAI = "oai oài oái oải oãi oại".split()
+TONE_T_OAO = "oao oào oáo oảo oão oạo".split()
+TONE_T_OEO = "oeo oèo oéo oẻo oẽo oẹo".split()
+TONE_T_UAY = "uay uày uáy uảy uãy uạy uây uầy uấy uẩy uẫy uậy".split()
+TONE_T_UOI = "uoi uòi uói uỏi uõi uọi uôi uồi uối uổi uỗi uội ươi ười ưới ưởi ưỡi ượi".split()
+TONE_T_UOU = "uou uòu uóu uỏu uõu uọu ươu ườu ướu ưởu ưỡu ượu".split()
+TONE_T_UYA = "uya uỳa uýa uỷa uỹa uỵa".split()
+TONE_T_UYE = "uye uyè uyé uyẻ uyẽ uyẹ uyê uyề uyế uyể uyễ uyệ".split()
+TONE_T_UYU = "uyu uỳu uýu uỷu uỹu uỵu".split()
+
+LIST_T_TONES = TONE_T_IEU \
+               + TONE_T_YEU \
+               + TONE_T_OAI \
+               + TONE_T_OAI \
+               + TONE_T_OAO \
+               + TONE_T_OEO \
+               + TONE_T_UAY \
+               + TONE_T_UOI \
+               + TONE_T_UOU \
+               + TONE_T_UYA \
+               + TONE_T_UYE \
+               + TONE_T_UYU
+
+ALL_TRIPLE_TONES = [TONE_T_IEU,
+                    TONE_T_YEU,
+                    TONE_T_OAI,
+                    TONE_T_OAO,
+                    TONE_T_OEO,
+                    TONE_T_UAY,
+                    TONE_T_UOI,
+                    TONE_T_UOU,
+                    TONE_T_UYA,
+                    TONE_T_UYE,
+                    TONE_T_UYU]
+
+"""
+Nguyen am doi trong tieng viet co dau danh o phia sau
+"""
+TONE_D_IE = "ie iè ié iẻ iẽ iẹ iê iề iế iể iễ iệ".split()
+TONE_D_YE = "ye yè yé yẻ yẽ yẹ yê yề yế yể yễ yệ".split()
+TONE_D_OA = "oa oà oá oả oã oạ oă oằ oắ oẳ oẵ oặ oâ oấ oầ oẩ oẫ oậ".split()
+TONE_D_OE = "oe oè oé oẻ oẽ oẹ oê oề oế oể oễ oệ".split()
+TONE_D_OO = "oo oò oó oỏ oõ oọ".split()
+TONE_D_UA = "ua uà uá uả uã uạ uâ uầ uấ uẩ uẫ uậ".split()
+TONE_D_UE = "ue uè ué uẻ uẽ uẹ uê uề uế uể uễ uệ".split()
+TONE_D_UO = "uo uò uó uỏ uõ uọ uô uồ uố uổ uỗ uộ uơ uờ uớ uở uỡ uợ ươ ườ ướ ưở ưỡ ượ".split()
+
+LIST_D_TONES = TONE_D_IE \
+               + TONE_D_YE \
+               + TONE_D_OA \
+               + TONE_D_OE \
+               + TONE_D_OO \
+               + TONE_D_UA \
+               + TONE_D_UE \
+               + TONE_D_UO
+ALL_DOUBLE_TONES = [TONE_D_IE,
+                    TONE_D_YE,
+                    TONE_D_OA,
+                    TONE_D_OE,
+                    TONE_D_OO,
+                    TONE_D_UA,
+                    TONE_D_UE,
+                    TONE_D_UO]
+
+"""
+Nguyen am don trong tieng viet 
+"""
+TONE_S_A = "a à á ả ã ạ ă ằ ắ ẳ ẵ ặ â ầ ấ ẩ ẫ ậ".split()
+TONE_S_E = "e è é ẻ ẽ ẹ ê ề ế ể ễ ệ".split()
+TONE_S_I = "i ì í ỉ ĩ ị".split()
+TONE_S_O = "o ò ó ỏ õ ọ ô ồ ố ổ ỗ ộ ơ ờ ớ ở ỡ ợ".split()
+TONE_S_U = "u ù ú ủ ũ ụ ư ừ ứ ử ữ ự".split()
+TONE_S_Y = "y ỳ ý ỷ ỹ ỵ".split()
+
+LiST_S_TONES = TONE_S_A \
+               + TONE_S_E \
+               + TONE_S_I \
+               + TONE_S_O \
+               + TONE_S_U \
+               + TONE_S_Y
+
+ALL_SINGLE_TONES = [TONE_S_A,
+                    TONE_S_E,
+                    TONE_S_I,
+                    TONE_S_O,
+                    TONE_S_U,
+                    TONE_S_Y]
+
+"""
+cac tu click phim hai lan
+"""
+DC_A = "a â".split()
+DC_E = "e ê".split()
+DC_O = "o ô".split()
+
+NUM_DC = 2
+DOUBLE_CLICK_VOWELS = [DC_A,
+                       DC_E,
+                       DC_O]
+
+"""
+cac tu su dung phim "w"
+"""
+CM_A = "a ă".split()
+CM_O = "o ơ".split()
+CM_U = "u ư".split()
+
+NUM_CM = 2
+COMMA_MARK_VOWELS = [CM_A,
+                     CM_O,
+                     CM_U]
+
+MAP_ERROR_TONE_KEYBOARD = {
+    0: "",
+    1: "f",
+    2: "s",
+    3: "r",
+    4: "x",
+    5: "j"
+}
+
+MAP_VOWEL_TYPE = {
+    1: ALL_SINGLE_TONES,
+    2: ALL_DOUBLE_TONES,
+    3: ALL_TRIPLE_TONES
+}
+///////////////////////////////////
+from constants_tones import ALL_SINGLE_TONES, NUM_TONES, DOUBLE_CLICK_VOWELS, NUM_DC, \
+    COMMA_MARK_VOWELS, NUM_CM, MAP_ERROR_TONE_KEYBOARD
+import numpy as np
+from utils.tone import ToneUtils
+
+
+class GenErrorToneSentence:
+    def __init__(self):
+        """
+        "0": error tone
+        "1": error double click
+        "2": error comma mark
+        """
+        self.map_rate_error = {
+            "0": 0.33,
+            "1": 0.66,
+            "2": 1.0
+        }
+        self.tone_utils = ToneUtils()
+
+    def gen_tone_error(self, word, un_tone_word, word_attr):
+        tone, tone_index = word_attr["tone"]
+        vowel, vowel_index = word_attr["vowel type"]
+        random_tone_error = np.random.uniform(0, 1, 1)
+        if random_tone_error <= 0.5:
+            new_tone = np.random.randint(0, 6, 1)[0]
+            while new_tone == tone:
+                new_tone = np.random.randint(0, 6, 1)[0]
+            new_word = self.tone_utils.change_tone(word=word,
+                                                   tone_type=new_tone,
+                                                   tone_index=tone_index,
+                                                   vowel_type=vowel)
+        else:
+            append_letter = MAP_ERROR_TONE_KEYBOARD[tone]
+            new_word = un_tone_word + append_letter
+
+        return new_word
+
+    def gen_double_click_error(self, word, un_tone_word, word_attr):
+        tone, tone_index = word_attr["tone"]
+        db_click, dbc_index = word_attr["double click"]
+        vowel, vowel_index = word_attr["vowel type"]
+        word_letters = list(un_tone_word)
+        append_letter = ""
+        for dbc_vowel in DOUBLE_CLICK_VOWELS:
+            if word_letters[dbc_index] in dbc_vowel:
+                word_letters[dbc_index] = dbc_vowel[0]
+                append_letter = dbc_vowel[0]
+
+        random_dbc_error = np.random.uniform(0, 1, 1)
+        word_letters[dbc_index] = append_letter
+        if random_dbc_error <= 0.5:
+            new_word = self.tone_utils.change_tone(word="".join(word_letters),
+                                                   tone_type=tone,
+                                                   tone_index=tone_index,
+                                                   vowel_type=vowel) \
+                       + str(append_letter)
+        else:
+            new_word = self.tone_utils.change_tone(word="".join(word_letters),
+                                                   tone_type=tone,
+                                                   tone_index=tone_index,
+                                                   vowel_type=vowel)
+            word_letters = list(new_word)
+            word_letters.insert(dbc_index + 1, append_letter)
+            new_word = "".join(word_letters)
+        return new_word
+
+    def gen_comma_mark_error(self, word, un_tone_word, word_attr):
+        tone, tone_index = word_attr["tone"]
+        cm_click, cm_index = word_attr["comma mark"]
+        vowel, vowel_index = word_attr["vowel type"]
+        if "ươ" in word:
+
+
+        else:
+            word_letters = list(un_tone_word)
+            for vowel in COMMA_MARK_VOWELS:
+                if word_letters[cm_index] in vowel:
+                    word_letters[cm_index] = vowel[0]
+            new_word = self.tone_utils.change_tone("".join(word_letters), tone) + "w"
+
+        return new_word
+
+    def gen_typing_error_word(self, word, un_tone_word, word_attr, threshold):
+        random_error_choice = np.random.uniform(0, 1, 1)
+        if random_error_choice < threshold:
+            return word
+        else:
+            self.update_map_rate_error(word_attr=word_attr)
+            if int(sum(self.map_rate_error.values())) == -3:
+                return word
+            error_type_choice = np.random.uniform(0, 1, 1)
+            if error_type_choice <= self.map_rate_error["0"]:
+                new_word = self.gen_tone_error(word=word,
+                                               un_tone_word=un_tone_word,
+                                               word_attr=word_attr)
+            elif self.map_rate_error["0"] < error_type_choice <= self.map_rate_error["1"]:
+                new_word = self.gen_double_click_error(word=word,
+                                                       un_tone_word=un_tone_word,
+                                                       word_attr=word_attr)
+            else:
+                new_word = self.gen_comma_mark_error(word=word,
+                                                     un_tone_word=un_tone_word,
+                                                     word_attr=word_attr)
+        return new_word
+
+    def update_map_rate_error(self, word_attr):
+        rate_error = list()
+        rate_error.append(word_attr["tone"][0] > 0)
+        rate_error.append(word_attr["db click"][0] > 0)
+        rate_error.append(word_attr["comma mark"][0] > 0)
+        error_total = sum(rate_error)
+        if int(error_total) == 0:
+            self.map_rate_error = {
+                "0": -1.0,
+                "1": -1.0,
+                "2": -1.0
+            }
+            return
+        else:
+            unit_rate = round(float(1 / error_total), 2)
+
+        init_rate = 0
+        for index in range(0, 3):
+            if rate_error[index]:
+                init_rate = init_rate + unit_rate
+                self.map_rate_error[str(index)] = init_rate
+            else:
+                self.map_rate_error[str(index)] = init_rate
+        self.map_rate_error["2"] = 1.0
+
+    def gen_typing_error_sentence(self, sentence="", threshold=0.9):
+        sentence = sentence.strip()
+        if sentence == "":
+            return sentence
+        sentence_words = sentence.split()
+        error_sentences = list()
+        for i in range(100):
+            error_sentence = []
+            for word in sentence_words:
+                word_attr, un_tone_word = self.check_word_attr(word=word)
+                new_word = self.gen_typing_error_word(word=word,
+                                                      un_tone_word=un_tone_word,
+                                                      word_attr=word_attr,
+                                                      threshold=threshold)
+                error_sentence.append(new_word)
+            error_sentences.append(" ".join(error_sentence))
+        error_sentences = list(set(error_sentences))
+        for i in error_sentences:
+            print(i)
+
+
+if __name__ == "__main__":
+    text = "yến"
+    gen = GenErrorToneSentence()
+    word_attr_, un_tone_word_ = gen.tone_utils.check_word_attr(word=text)
+    for i in range(10):
+        print(gen.gen_double_click_error(word=text,
+                                   un_tone_word=un_tone_word_,
+                                   word_attr=word_attr_))
