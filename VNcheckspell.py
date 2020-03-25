@@ -574,3 +574,11 @@ print('  Input Words: {}'.format("".join([int_to_vocab[i] for i in text])))
 print('\nSummary')
 print('  Word Ids:       {}'.format([i for i in answer_logits if i != pad]))
 print('  Response Words: {}'.format("".join([int_to_vocab[i] for i in answer_logits if i != pad])))
+
+# https://www.coursera.org/learn/machine-learning-with-python
+# https://www.coursera.org/learn/introduction-to-deep-learning-with-keras?specialization=ai-engineer
+# https://www.coursera.org/learn/deep-neural-networks-with-pytorch?specialization=ai-engineer
+# https://www.coursera.org/learn/neural-networks-deep-learning?specialization=deep-learning
+# https://www.coursera.org/learn/machine-learning-projects?specialization=deep-learning
+# https://www.coursera.org/learn/convolutional-neural-networks?specialization=deep-learning
+# https://www.coursera.org/learn/nlp-sequence-models
