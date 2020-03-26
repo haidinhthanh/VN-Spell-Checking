@@ -140,3 +140,101 @@ fequal119
 <PAD>equal139
 <EOS>equal140
 <GO>equal141
+///////////////////////////
+import tensorflow as tf
+import pandas as pd
+from constant import DATA_PATH
+from os import path
+import re
+from asset.number import NUMBER
+from asset.letter import VN_LETTER
+from asset.vowel import LiST_S_TONES
+from asset.punctuation_mark import PUNCTUATION_MARK
+
+# load data
+df = pd.read_excel(path.join(DATA_PATH, 'train_spell.xlsx'), sheet_name="data train")
+codes = ['<EOS>', '<GO>', '<PAD>', '<UNK>']
+
+
+# create data set
+def pre_processing_sentence(sentence):
+    sentence = re.sub(r'([.,!?()])', r' \1 ', str(sentence))
+    sentence = re.sub(r'\s{2,}', ' ', sentence)
+    sentence = re.sub(r'\<|\>', '', sentence)
+    sentence = codes[1] + sentence + codes[0]
+    return sentence
+
+
+err_sentences = list()
+cor_sentences = list()
+for index, row in df.iterrows():
+    err_sentence = pre_processing_sentence(df.loc[index]['error sentences'])
+    cor_sentence = pre_processing_sentence(df.loc[index]['correct sentences'])
+    err_sentences.append(err_sentence)
+    cor_sentences.append(cor_sentence)
+
+
+# def tokenize(sentences):
+#     sentence_tokenizer = tf.keras.preprocessing.text.Tokenizer(filters=" ")
+#     sentence_tokenizer.fit_on_texts(sentences)
+#     tensor = sentence_tokenizer.texts_to_sequences(sentences)
+#     tensor = tf.keras.preprocessing.sequence.pad_sequences(sequences=tensor,
+#                                                            padding='post')
+#     return tensor, sentence_tokenizer
+#
+# tensor, sentence_tokenizer = tokenize(err_sentences)
+# print(err_sentences[-1])
+# print(tensor[-1])
+#
+def init_vocabulary(sentences):
+    vocab_word_to_int = dict()
+    vocab_int_to_word = dict()
+    count = 0
+    vocab_word_to_int[" "] = count
+
+    for letter_code in codes:
+        vocab_word_to_int[letter_code] = count
+        count += 1
+    for number in NUMBER:
+        vocab_word_to_int[number] = count
+        count += 1
+    for letter in VN_LETTER:
+        vocab_word_to_int[letter] = count
+        count += 1
+    for vowel in LiST_S_TONES:
+        vocab_word_to_int[vowel] = count
+        count += 1
+    for mark in PUNCTUATION_MARK:
+        vocab_word_to_int[mark] = count
+        count += 1
+    # for sentence in sentences:
+    #     for letter in sentence:
+    #         if letter not in vocab_word_to_int.keys():
+    #             vocab_word_to_int[letter] = count
+    #             count += 1
+    vocab_word_to_int[" "] = count
+    for key, value in vocab_word_to_int.items():
+        vocab_int_to_word[value] = key
+
+    return vocab_word_to_int, vocab_int_to_word
+
+
+vocab_word_to_int_, vocab_int_to_word_ = init_vocabulary(sentences=err_sentences + cor_sentences)
+
+
+# covert to int
+def convert_sentences(sentences, vocab):
+    convert_sen = list()
+    for sentence in sentences:
+        new_sentence = list()
+        for letter in sentence:
+            if letter in vocab.keys():
+                new_sentence.append(vocab[letter])
+            else:
+                new_sentence.append(vocab['<UNK>'])
+        convert_sen.append(new_sentence)
+    return convert_sen
+
+
+int_err_sentences = convert_sentences(err_sentences, vocab_word_to_int_)
+int_cor_sentences = convert_sentences(cor_sentences, vocab_int_to_word_)
