@@ -140,3 +140,418 @@ fequal119
 <PAD>equal139
 <EOS>equal140
 <GO>equal141
+??????/
+import tensorflow as tf
+print(tf.__version__)
+import numpy as np
+from tensorflow.keras import Model
+from tensorflow.keras.layers import Embedding, GRU, Layer, Dense
+import pandas as pd
+import os
+import time
+from os import path
+import re
+from sklearn.model_selection import train_test_split
+import pickle
+# /////////////////////////////////////////////////////////////////
+NUMBER = "0 1 2 3 4 5 6 7 8 9".split()
+"""
+dau ngat quang cau
+"""
+PUNCTUATION_MARK = [
+    ".",
+    "?",
+    "...",
+    ":",
+    "!",
+    "-",
+    "(",
+    ")",
+    '"',
+    ";",
+    ",",
+    "[",
+    "]",
+    "+",
+    "-",
+    "*",
+    "/",
+    "#",
+    "$",
+    "%",
+    "^",
+    "&",
+    "{",
+    "}",
+    "=",
+    "@"
+]
+TONE_S_A = "a à á ả ã ạ ă ằ ắ ẳ ẵ ặ â ầ ấ ẩ ẫ ậ".split()
+TONE_S_E = "e è é ẻ ẽ ẹ ê ề ế ể ễ ệ".split()
+TONE_S_I = "i ì í ỉ ĩ ị".split()
+TONE_S_O = "o ò ó ỏ õ ọ ô ồ ố ổ ỗ ộ ơ ờ ớ ở ỡ ợ".split()
+TONE_S_U = "u ù ú ủ ũ ụ ư ừ ứ ử ữ ự".split()
+TONE_S_Y = "y ỳ ý ỷ ỹ ỵ".split()
+
+LiST_S_TONES = TONE_S_A \
+               + TONE_S_E \
+               + TONE_S_I \
+               + TONE_S_O \
+               + TONE_S_U \
+               + TONE_S_Y
+
+VN_LETTER = "a ă â b c d đ e ê g h i k l m n o ô ơ p q r s t u ư v x y".split()
+# load data
+df = pd.read_excel(path.join(os.getcwd(), 'train_spell.xlsx'), sheet_name="data train")
+print("read data")
+codes = ['<PAD>', '<GO>', '<EOS>', '<UNK>']
+
+
+# create data set
+def pre_processing_sentence(sentence):
+    sentence = re.sub(r'([.,!?()])', r' \1 ', str(sentence))
+    sentence = re.sub(r'\s{2,}', ' ', sentence)
+    sentence = re.sub(r'\<|\>', '', sentence)
+    sentence = '<GO>' + sentence + '<EOS>'
+    return sentence
+
+
+err_sentences = list()
+cor_sentences = list()
+for index, row in df.iterrows():
+    err_sentence = pre_processing_sentence(df.loc[index]['error sentences'])
+    cor_sentence = pre_processing_sentence(df.loc[index]['correct sentences'])
+    err_sentences.append(err_sentence)
+    cor_sentences.append(cor_sentence)
+
+
+#
+#
+# def tokenize(sentences):
+#     sentence_tokenizer = tf.keras.preprocessing.text.Tokenizer(filters=" ")
+#     sentence_tokenizer.fit_on_texts(sentences)
+#     tensor = sentence_tokenizer.texts_to_sequences(sentences)
+#     tensor = tf.keras.preprocessing.sequence.pad_sequences(sequences=tensor,
+#                                                            padding='post')
+#     return tensor, sentence_tokenizer
+#
+#
+# input_tensor_train, inp_lang = tokenize(err_sentences)
+# out_tensor_train, out_lang = tokenize(cor_sentences)
+#
+# BUFFER_SIZE = len(input_tensor_train)
+# BATCH_SIZE = 64
+# steps_per_epoch = len(input_tensor_train)//BATCH_SIZE
+# embedding_dim = 256
+# lstm_unit = 1024
+# VOCAB_SIZE = len(inp_lang.word_index)+1
+# vocab_tar_size = len(out_lang.word_index)+1
+# print(out_lang.word_index['<GO>'])
+#
+# dataset = tf.data.Dataset.from_tensor_slices((input_tensor_train, out_tensor_train)).shuffle(BUFFER_SIZE)
+# dataset = dataset.batch(BATCH_SIZE, drop_remainder=True)
+# inp, out = next(iter(dataset))
+def init_vocabulary(sentences):
+    vocab_word_to_int = dict()
+    vocab_int_to_word = dict()
+    count = 0
+
+    for letter_code in codes:
+        vocab_word_to_int[letter_code] = count
+        count += 1
+    for number in NUMBER:
+        vocab_word_to_int[number] = count
+        count += 1
+    for letter in VN_LETTER:
+        vocab_word_to_int[letter] = count
+        count += 1
+    for vowel in LiST_S_TONES:
+        vocab_word_to_int[vowel] = count
+        count += 1
+    for mark in PUNCTUATION_MARK:
+        vocab_word_to_int[mark] = count
+        count += 1
+    vocab_word_to_int[" "] = count
+    for key, value in vocab_word_to_int.items():
+        vocab_int_to_word[value] = key
+
+    return vocab_word_to_int, vocab_int_to_word
+
+
+print("init vocab")
+vocab_word_to_int_, vocab_int_to_word_ = init_vocabulary(sentences=err_sentences + cor_sentences)
+
+
+def convert_sentences_to_int(sentences, vocab):
+    convert_sen = list()
+    sentences = [str(sentence).replace("<GO>", "").replace("<EOS>", "").strip()
+                 for sentence in sentences]
+    for sentence in sentences:
+        new_sentence = list()
+        for letter in sentence:
+            if letter in vocab.keys():
+                new_sentence.append(vocab[letter])
+            else:
+                new_sentence.append(vocab['<UNK>'])
+        new_sentence.insert(0, vocab['<GO>'])
+        new_sentence.append(vocab['<EOS>'])
+        convert_sen.append(new_sentence)
+    return convert_sen
+
+
+print("preprocess")
+int_err_sentences = convert_sentences_to_int(err_sentences, vocab_word_to_int_)
+int_cor_sentences = convert_sentences_to_int(cor_sentences, vocab_word_to_int_)
+
+BUFFER_SIZE = len(int_err_sentences)
+BATCH_SIZE = 64
+STEP_PER_EPOCH = len(int_err_sentences) // BATCH_SIZE
+VOCAB_SIZE = max([value for value in vocab_word_to_int_.values()]) + 1
+max_input_sen_len = 100
+max_out_sen_len = 100
+dropout_ = 0.8
+embedding_dim = 256
+units = 1024
+EPOCHS = 10
+
+new_int_err_sens = list()
+new_int_cor_sens = list()
+for sen in int_err_sentences:
+    if len(sen) < max_input_sen_len:
+        index = int_err_sentences.index(sen)
+        new_int_err_sens.append(int_err_sentences[index])
+        new_int_cor_sens.append(int_cor_sentences[index])
+
+train_int_err_sens, test_int_err_sens, train_int_cor_sens, test_int_cor_sens = train_test_split(new_int_err_sens[0:5000],
+                                                                                                new_int_cor_sens[0:5000],
+                                                                                                test_size=0.3,
+                                                                                                random_state=2)
+
+
+class Encoder(Model):
+    def __init__(self, vocab_size, embedding_size, enc_units, batch_size, dropout):
+        super(Encoder, self).__init__()
+        self.embedding = Embedding(input_dim=vocab_size,
+                                   output_dim=embedding_size)
+        self.ec_units = enc_units
+        self.batch_size = batch_size
+
+        self.gru = GRU(enc_units,
+                       return_sequences=True,
+                       return_state=True,
+                       recurrent_initializer='glorot_uniform',
+                       dropout=dropout)
+
+    def call(self, x, hidden):
+        x = self.embedding(x)
+        output, state = self.gru(x, initial_state=hidden)
+        return output, state
+
+    def initialize_hidden_state(self):
+        return tf.zeros((self.batch_size, self.ec_units))
+
+
+#
+#
+# #
+# # exam = int_err_sentences[0:64]
+#
+#
+# #
+# # exam = pad_sentence_batch(exam, max_input_sen_len)
+# # exam = np.array(exam, dtype="int")
+# # exam = tf.convert_to_tensor(value=exam)
+# # hidden_state = encoder.initialize_hidden_state()
+# # output_enc, enc_state = encoder.call(exam, hidden_state)
+#
+#
+class BahdanauAttention(Layer):
+    def __init__(self, units):
+        super(BahdanauAttention, self).__init__()
+        self.W1 = tf.keras.layers.Dense(units)
+        self.W2 = tf.keras.layers.Dense(units)
+        self.V = tf.keras.layers.Dense(1)
+
+    def call(self, query, values):
+        query_with_time_axis = tf.expand_dims(query, 1)
+
+        score = self.V(tf.nn.tanh(self.W1(query_with_time_axis) + self.W2(values)))
+        attention_weights = tf.nn.softmax(score, axis=1)
+
+        context_vector = attention_weights * values
+        context_vector = tf.reduce_sum(context_vector, axis=1)
+
+        return context_vector, attention_weights
+
+
+class Decoder(Model):
+    def __init__(self, vocab_size, embedding_size, dec_units, batch_size, dropout):
+        super(Decoder, self).__init__()
+        self.batch_sz = batch_size
+        self.dec_units = dec_units
+        self.embedding = Embedding(vocab_size, embedding_size)
+        self.gru = GRU(self.dec_units,
+                       return_sequences=True,
+                       return_state=True,
+                       recurrent_initializer='glorot_uniform',
+                       dropout=dropout)
+        self.fc = Dense(vocab_size)
+        self.attention = BahdanauAttention(self.dec_units)
+
+    def call(self, x, hidden, enc_output):
+        context_vector, attention_weights = self.attention(hidden, enc_output)
+        x = self.embedding(x)
+        x = tf.concat([tf.expand_dims(context_vector, 1), x], axis=-1)
+        output, state = self.gru(x)
+        output = tf.reshape(output, (-1, output.shape[2]))
+        x = self.fc(output)
+
+        return x, state, attention_weights
+
+
+encoder = Encoder(vocab_size=VOCAB_SIZE,
+                  embedding_size=embedding_dim,
+                  enc_units=units,
+                  batch_size=BATCH_SIZE,
+                  dropout=dropout_)
+decoder = Decoder(vocab_size=VOCAB_SIZE,
+                  embedding_size=embedding_dim,
+                  dec_units=units,
+                  batch_size=BATCH_SIZE,
+                  dropout=dropout_)
+
+optimizer = tf.keras.optimizers.Adam()
+loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True,
+                                                            reduction='none')
+
+
+def loss_function(real, pred):
+    mask = tf.math.logical_not(tf.math.equal(real, 0))
+    loss_ = loss_object(real, pred)
+
+    mask = tf.cast(mask, dtype=loss_.dtype)
+    loss_ *= mask
+
+    return tf.reduce_mean(loss_)
+
+
+checkpoint_dir = './checkpoint'
+checkpoint_prefix = path.join(checkpoint_dir, "ckpt")
+checkpoint = tf.train.Checkpoint(optimizer=optimizer,
+                                 encoder=encoder,
+                                 decoder=decoder)
+
+
+def train_step(inp, targ, enc_hidden):
+    loss = 0
+
+    with tf.GradientTape() as tape:
+        enc_output, enc_hidden = encoder(inp, enc_hidden)
+
+        dec_hidden = enc_hidden
+
+        dec_input = tf.expand_dims([vocab_word_to_int_['<GO>']] * BATCH_SIZE, 1)
+        for t in range(1, targ.shape[1]):
+            predictions, dec_hidden, _ = decoder(dec_input, dec_hidden, enc_output)
+
+            loss += loss_function(targ[:, t], predictions)
+
+            dec_input = tf.expand_dims(targ[:, t], 1)
+
+    batch_loss = (loss / int(targ.shape[1]))
+
+    variables = encoder.trainable_variables + decoder.trainable_variables
+
+    gradients = tape.gradient(loss, variables)
+
+    optimizer.apply_gradients(zip(gradients, variables))
+
+    return batch_loss
+
+
+def pad_sentence_batch(sentence_batch, max_sentence):
+    return [sentence + [vocab_word_to_int_['<PAD>']] * (max_sentence - len(sentence)) for sentence in sentence_batch]
+
+
+def get_batches(error_sentences, correct_sentences, batch_size):
+    for batch_i in range(0, len(error_sentences) // batch_size):
+        start_i = batch_i * batch_size
+        err_sentences_batch = error_sentences[start_i:start_i + batch_size]
+        cor_sentences_batch = correct_sentences[start_i:start_i + batch_size]
+        pad_err_sentences_batch = np.array(pad_sentence_batch(err_sentences_batch, max_input_sen_len))
+        pad_cor_sentences_batch = np.array(pad_sentence_batch(cor_sentences_batch, max_out_sen_len))
+
+        yield pad_err_sentences_batch, pad_cor_sentences_batch
+
+
+for epoch in range(1, EPOCHS + 1):
+    print("Epoch: " + str(epoch))
+    testing_lost_summary = list()
+    enc_hidden = encoder.initialize_hidden_state()
+
+    # total_loss = 0
+    display_step = 1
+    stop_early = 0
+    stop = 5
+
+    epoch_loss = 0
+    epoch_time = 0
+    for (batch, (inp, targ)) in enumerate(get_batches(train_int_err_sens, train_int_cor_sens, BATCH_SIZE)):
+        start_time = time.time()
+        batch_loss = train_step(inp, targ, enc_hidden)
+        batch_time = time.time() - start_time
+
+        print('Epoch {:>3}/{} Batch {:>4}/{} - Loss: {:>6.3f}, Seconds: {:>4.2f}'
+              .format(epoch,
+                      EPOCHS,
+                      batch + 1,
+                      len(train_int_err_sens) // BATCH_SIZE,
+                      batch_loss,
+                      batch_time))
+
+        epoch_loss += batch_loss
+        epoch_time += batch_time
+
+    epoch_loss_testing = 0
+    epoch_time_testing = 0
+    print("testing.......")
+    for (batch, (inp, targ)) in enumerate(get_batches(test_int_err_sens, test_int_cor_sens, BATCH_SIZE)):
+        start_test_time = time.time()
+        batch_loss = train_step(inp, targ, enc_hidden)
+        batch_time = time.time() - start_test_time
+
+        epoch_loss_testing += batch_loss
+        epoch_time_testing += batch_time
+
+    print('Testing Loss: {:>6.3f}, Seconds: {:>4.2f}'
+          .format(epoch_loss_testing / (len(test_int_cor_sens)//BATCH_SIZE),
+                  epoch_time_testing))
+
+    testing_lost_summary.append(epoch_loss_testing)
+    if epoch_loss_testing <= min(testing_lost_summary):
+        print('New Record!')
+        stop_early = 0
+        checkpoint.save(file_prefix=checkpoint_prefix)
+        enc_train = open("enc_train.pkl", "wb")
+        pickle.dump(encoder, enc_train)
+        enc_train.close()
+        dec_train = open("dec_train.pkl", "wb")
+        pickle.dump(decoder, dec_train)
+        dec_train.close()
+    else:
+        print("No Improvement.")
+        stop_early += 1
+        if stop_early == stop:
+            break
+
+    if stop_early == stop:
+        print("Stopping Training.")
+        break
+    print('Epoch {} Loss {:.4f}'.format(epoch,
+                                        epoch_loss / (len(train_int_err_sens)//BATCH_SIZE)))
+    print('Time taken for 1 epoch {} sec: '.format(epoch_time))
+
+    epoch_loss = 0
+    epoch_time = 0
+    epoch_loss_testing = 0
+    epoch_time_testing = 0
